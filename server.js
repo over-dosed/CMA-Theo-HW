@@ -6,6 +6,9 @@
 // to send a message:               socket.emit(title,data);
 // to deal with a received message: socket.on(title,function(data){ frob(data); })
 
+
+// little change for test
+
 //========================================================================
 const MAX_PLAYERS = 2; // maximum number of players, which is 2 by default.
                        // you can freely change it to another number here,
