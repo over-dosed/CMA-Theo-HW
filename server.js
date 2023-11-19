@@ -6,9 +6,6 @@
 // to send a message:               socket.emit(title,data);
 // to deal with a received message: socket.on(title,function(data){ frob(data); })
 
-
-// little change for test
-
 //========================================================================
 const MAX_PLAYERS = 2; // maximum number of players, which is 2 by default.
                        // you can freely change it to another number here,
@@ -27,8 +24,11 @@ app.use(express.static("public"));
 let io = require('socket.io')(server);
 
 let serverData = {}; // everyone's data
+let serverTypeData = {}; // everyone's type
 let numPlayers = 0; // current number of players
 let updateCounter = 0; 
+
+let last_player_type = -1; // indicate last_player_type; 0 = None ; 1 = human ; 2 = animal
 
 console.log("listening...")
 
@@ -38,17 +38,47 @@ io.sockets.on('connection', newConnection);
 function newConnection(socket){
   
   // Note: "socket" now refers to this particular new player's connection
-  console.log('new connection: ' + socket.id);
+  // console.log('new connection: ' + socket.id);
   
   // if there're too many players, reject player's request to join
   if (numPlayers >= MAX_PLAYERS){
     socket.emit("connection-reject");
     return;
   }
+  
   numPlayers++;
   
-  // OK you're in!
-  socket.emit("connection-approve");  
+  // allocate role
+  if (numPlayers == 1){
+    var rand = Math.random(); // 判断随机数的大小
+    if (rand < 0.5) {
+      // 如果小于0.5，设置为0
+      last_player_type = 0
+      socket.emit("connection-approve-human"); // OK you're in! as human
+      serverTypeData[socket.id] = 0;
+      console.log('new human connection: ' + socket.id);
+    } else {
+      // 如果大于等于0.5，设置为1
+      last_player_type = 1
+      socket.emit("connection-approve-animal"); // OK you're in! as animal
+      serverTypeData[socket.id] = 1;
+      console.log('new animal connection: ' + socket.id);
+    }
+  } else {
+    if (last_player_type == 0){
+      socket.emit("connection-approve-animal"); // OK you're in! as animal
+      serverTypeData[socket.id] = 1;
+      console.log('new animal connection: ' + socket.id);
+    } else {
+      socket.emit("connection-approve-human"); // OK you're in! as human
+      serverTypeData[socket.id] = 0;
+      console.log('new human connection: ' + socket.id);
+    }
+    
+  }
+  
+  // // OK you're in!
+  // socket.emit("connection-approve");  
   
   // What to do when client sends us a message entitled 'client-update'
   socket.on('client-update',function(data){
@@ -57,6 +87,16 @@ function newConnection(socket){
     // into a big table for sending to everyone later!
     serverData[socket.id] = data;
     updateCounter++;
+  })
+  
+  // update type
+  socket.on('client-update-type',function(data){
+    // Here the client updates us about itself
+    // in this simple example, we just need to dump the client's data
+    // into a big table for sending to everyone later!
+    let other_type = (data + 3) % 6
+    socket.broadcast.emit('server-update-type', other_type);
+    console.log('change new type: ' + data + other_type);
   })
 
   
@@ -78,8 +118,10 @@ function newConnection(socket){
   socket.on('disconnect', function(){
     clearInterval(timer); // cancel the scheduled updates we set up earlier
     delete serverData[socket.id];
-    console.log(socket.id+' disconnected');
     numPlayers--;
+    last_player_type = 1 - serverTypeData[socket.id]
+    console.log(socket.id+'type: '+ serverTypeData[socket.id]+' disconnected, remain'+numPlayers);
+    delete serverTypeData[socket.id];
   });
   
   // Egads, we received the "crash-the-server" message!

@@ -12,19 +12,55 @@ var status = "unknown"; // or 'approve' or 'reject', depending on whether the se
 // RGB color backgrounds for the two players
 var colors = [[120,200,255],[255,120,180]]
 
+//set a client human or animal; 0 = human ; 1 = hu-an-1 ； 2 = hu-an-2 ； 3 = animal ; 4 = an-hu-1 ; 5 = an-hu-2
+var type = 0;
+
+// test for load video
+
+
+let dog_gif;
+let dog_imgX = 100;
+let dog_imgY = 220;
+
+let finger_img;
+// let finger_imgX = 100;
+// let finger_imgY = 220;
+let finger_imgX = 130;
+let finger_imgY = 50;
+
+// control gif duration
+let gifDuration = 2100;
+let startTime;
+let gif_isPlaying = false;
+
+// let typeParagraph
+
+function preload() {
+  // dog_statc = loadImage("https://cdn.glitch.global/3e2d5884-c269-4118-b3e6-258da1755a62/first_frame_dog.png?v=1700204809424");
+  dog_gif = loadImage("https://cdn.glitch.global/3e2d5884-c269-4118-b3e6-258da1755a62/ezgif-4-gif_150.gif?v=1700206725955");
+  finger_img = loadImage("https://cdn.glitch.global/3e2d5884-c269-4118-b3e6-258da1755a62/ezgif-2-b992d2fb14.jpg?v=1700213966104");
+}
+
 //------------------------------------------------
 // The main p5.js setup
 function setup() {
   createCanvas(windowWidth, windowHeight);
+  
+  dog_gif.filter(GRAY);
+  dog_gif.pause();
+  
 }
 
 //------------------------------------------------
 // The main p5.js draw loop
 //
 function draw() {
-  background (60,40,60);
-  stroke(255);
-  line(mouseX, mouseY, 0,0); 
+  background (255);
+  
+  // dog_gif.play();
+  // image(video, 0, 0);
+  // stroke(255);
+  // line(mouseX, mouseY, 0,0); 
   
   // 1. Handle problematic network statuses. Shouldn't happen often.
   if (status == "reject"){
@@ -34,6 +70,43 @@ function draw() {
     showMyErrorScreen("Waiting for server to usher you...");
     return;
   }
+  
+  // test show type
+  let textContent_above;
+  textContent_above = "YOU ARE"
+  textSize(50);
+  fill("red");
+  textAlign(LEFT);
+  text(textContent_above, 80, 50); // 在画布上绘制文本
+  
+  let textContent_below;
+  textSize(80);
+  fill("black");
+  textAlign(LEFT);
+  if (type < 3) {
+    textContent_below = "HUMAN";
+    text(textContent_below, 50, 600); // 在画布上绘制文本
+  } else {
+    textContent_below = "DOG";
+    text(textContent_below, 100, 600); // 在画布上绘制文本
+  }
+  
+  
+  
+  
+  // show dog gif and finger image
+  image(dog_gif, dog_imgX, dog_imgY);
+  image(finger_img, finger_imgX, finger_imgY);
+  
+  // 计算已经过的时间
+  let elapsedTime = millis() - startTime;
+  
+  // 如果已经过了指定的时间，则暂停播放
+  if (elapsedTime >= gifDuration && gif_isPlaying) {
+    gif_isPlaying = false;
+    dog_gif.pause();
+  }
+  
   
   // 2. Update touches data: 
   // Collect all the touches info and update this client's data.
@@ -48,8 +121,16 @@ function draw() {
   let otherData = serverData[Object.keys(serverData)[0]];
   
   // 4. Draw the players' fingertips.
-  drawTouchesData(colors[0],otherData);
-  drawTouchesData(colors[1],clientData);
+  // drawTouchesData(colors[0],otherData);
+  // drawTouchesData(colors[1],clientData);
+  
+  // move images
+  if (type < 3){
+    drawforBoth(type, clientData);
+  } else {
+    drawforBoth(type, otherData);
+  }
+  
 }
 
 //------------------------------------------------
@@ -69,6 +150,29 @@ function drawTouchesData(color, data){
     stroke(255);
     circle(data.touches[i].x,data.touches[i].y,90);
   }
+}
+
+function drawforBoth(type, data){
+  if (!data || !data.touches){
+    return;
+  }
+  
+  for (var i = 0; i < data.touches.length; i++){
+    
+    dog_imgX = data.touches[i].x - 100;
+    dog_imgY = data.touches[i].y - 100;
+    finger_imgX = data.touches[i].x - 70;
+    finger_imgY = data.touches[i].y - 270;
+    
+  }
+  
+  // if human, not display finger image
+  if (type < 3){
+    finger_imgX = -300;
+    finger_imgY = -300;
+  }
+  
+  
 }
 
 //------------------------------------------------
@@ -96,13 +200,47 @@ function touchStarted(){
       Perhaps just use this for final documentation.
     */
     fullscreen(true); 
+    // dog_gif.play();
   }
   return false;
 }
+
+
+
 function touchMoved(){
   return false;
 }
+
+
+
 function touchEnded() {
+  
+  // if (playGif){
+  //   playGif = false;
+  //   dog_gif.pause();
+  // } else {
+  //   playGif = true;
+  //   dog_gif.play();
+  // }
+  
+  if (type >= 3){
+    playGif();
+    changeType();
+  }
+  
+  return false;
+}
+
+function playGif(){
+  dog_gif.play();
+  startTime = millis();
+  gif_isPlaying = true;
+  return false;
+}
+
+function changeType(){
+  type = (type + 1) % 6;
+  socket.emit('client-update-type', type);
   return false;
 }
 
@@ -120,10 +258,17 @@ function windowResized() { //this detects when the window is resized, such as en
 // Event handlers for the Socket library. 
 // You probably won't need to change these. 
 //
-socket.on('connection-approve', function(data){
+socket.on('connection-approve-human', function(data){
   // Update status when server tells us when 
   // they approve our request to join a room
-  status = "approve";
+  status = "approve-human";
+  type = 0;
+})
+socket.on('connection-approve-animal', function(data){
+  // Update status when server tells us when 
+  // they approve our request to join a room
+  status = "approve-animal";
+  type = 3;
 })
 socket.on('connection-reject', function(data){
   // Update status when server tells us when 
@@ -134,6 +279,12 @@ socket.on('server-update',function(data){
   // Update our copy of the other players' data
   // everytime the server sends us an update
   serverData = data;
+})
+socket.on('server-update-type',function(data){
+  // Update our copy of the other players' data
+  // everytime the server sends us an update
+  type = data;
+  playGif();
 })
 
 // It could happen that you might need to restart the server. 
